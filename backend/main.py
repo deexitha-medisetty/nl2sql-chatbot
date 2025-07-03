@@ -1,70 +1,49 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import sqlite3
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import openai
 
-# ✅ Load environment variables from .env
+# Load environment variables
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# ✅ Initialize FastAPI app
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Initialize FastAPI app
 app = FastAPI()
 
-# ✅ Allow frontend access (CORS policy)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ✅ Request body model
-class QueryInput(BaseModel):
+# Define request schema
+class QueryRequest(BaseModel):
     query: str
 
-# ✅ Health check route
-@app.get("/")
-def root():
-    return {"message": "🚀 NL2SQL API is running!"}
-
-# ✅ NL → SQL endpoint
+# POST endpoint for natural language to SQL
 @app.post("/query")
-async def query_db(input: QueryInput):
-    nl_query = input.query
+def generate_sql(request: QueryRequest):
+    user_input = request.query
 
-    try:
-        # ✅ FIXED: Correct method for openai>=1.0.0
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an expert SQL translator. Convert the user's natural language query into a valid SQL "
-                        "statement for a SQLite table named 'students' with columns (name, age, department)."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": f"Translate this to SQL: {nl_query}"
-                }
-            ]
-        )
-        sql_query = response.choices[0].message.content.strip()
-    except Exception as e:
-        return {"error": f"OpenAI failed: {str(e)}"}
+    # Prompt for OpenAI
+    prompt = f"Convert this natural language to SQL: {user_input}"
 
-    # 💾 Execute the SQL query against SQLite DB
-    try:
-        with sqlite3.connect("test.db") as conn:
-            cursor = conn.cursor()
-            cursor.execute(sql_query)
-            rows = cursor.fetchall()
-        return {"sql": sql_query, "results": rows}
-    except Exception as e:
-        return {"sql": sql_query, "error": f"SQL Error: {str(e)}"}
+    # Get completion from OpenAI
+    response = client.completions.create(
+        model="text-davinci-003",
+        prompt=prompt,
+        temperature=0,
+        max_tokens=100
+    )
 
+    sql_query = response.choices[0].text.strip()
+
+    # Optional: Execute SQL on local database
+    conn = sqlite3.connect("test.db")
+    cursor = conn.cursor()
+    cursor.execute(sql_query)
+    results = cursor.fetchall()
+    conn.close()
+
+    return {
+        "sql": sql_query,
+        "results": results
+    }

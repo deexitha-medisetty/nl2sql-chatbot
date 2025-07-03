@@ -1,28 +1,27 @@
 import sqlite3
 
-# Connect to SQLite DB (it will create one if it doesn't exist)
 conn = sqlite3.connect("test.db")
 cursor = conn.cursor()
 
-# Create a sample table
-cursor.execute("""
+cursor.execute('''
 CREATE TABLE IF NOT EXISTS students (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT,
     age INTEGER,
-    department TEXT
+    major TEXT
 )
-""")
+''')
 
-# Insert sample data
-cursor.executemany("""
-INSERT INTO students (name, age, department) VALUES (?, ?, ?)
-""", [
-    ("Alice", 21, "Computer Science"),
-    ("Bob", 22, "Electrical"),
-    ("Charlie", 20, "Mechanical")
-])
+cursor.execute('''
+INSERT INTO students (name, age, major)
+VALUES
+    ('Alice', 21, 'CS'),
+    ('Bob', 22, 'Math'),
+    ('Charlie', 23, 'Physics')
+''')
 
 conn.commit()
 conn.close()
-print("Database setup complete.")
+
+print("✅ test.db initialized with sample data.")
+
